@@ -2,9 +2,9 @@ fastapi[standard]
 psycopg >=3.3.2, <4.0.0
 bcrypt >= 5.0, <6.0.0
 python-jose >=3.5.0, <4.0.0
-python-multipart >= 0.0.21, <1.0.0
+python-multipart >= 0.0.22, <1.0.0
 python-dotenv >=1.2.1,<2.0.0
-cryptography >=46.0.6, <47.0.0
+cryptography >=46.0.7, <47.0.0
 SQLAlchemy >=2.0.46,<3.0
 sqlmodel >= 0.0.31, <1.0.0
 SQLAlchemy-Utils >=0.42.1, <1.0.0
