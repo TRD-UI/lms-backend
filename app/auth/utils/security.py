@@ -120,3 +120,20 @@ def create_refresh_token(user_id: UUID, expires_delta: timedelta, db: Session) -
 
     return refresh_token_str
 
+
+def obfuscate_email(email: str) -> str:
+    """Helper security function that obfuscates emails."""
+    local_part, sep, domain_part = email.strip().partition("@")
+    if not sep or not local_part or not domain_part:
+        return "***"
+
+    def mask(value: str) -> str:
+        if len(value) <= 1:
+            return "*"
+        if len(value) == 2:
+            return f"{value[0]}*"
+        return f"{value[0]}{'*' * (len(value) - 2)}{value[-1]}"
+
+    return f"{mask(local_part)}{sep}{domain_part}"
+
+

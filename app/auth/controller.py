@@ -1,9 +1,9 @@
 """
 Authentication routes.
 
-This module exposes endpoints used for user registration, login (credential and
-Google OAuth), token refresh and logout. It delegates actual authentication
-work to `app.auth.service` and uses rate limiting for expensive endpoints.
+This module exposes endpoints used for user registration, login, token refresh and logout.
+It delegates actual authenticationwork to `app.auth.service` and uses rate limiting for
+expensive endpoints.
 """
 from typing import Any
 from fastapi import APIRouter, Request, status

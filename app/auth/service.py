@@ -5,11 +5,16 @@ Contains the core business logic for user registration, credential and social
 authentication, token generation and logout. These functions are called by
 the auth controller and translate DB and validation errors into HTTP
 exceptions appropriate for API responses.
+
+it is also important to note that profiles are actually created on user sign-up and can be updated
+via profile dedicated endpoints.
 """
 from datetime import timedelta,datetime, UTC
 from fastapi import HTTPException, status
+from fastapi.responses import JSONResponse
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.exc import MultipleResultsFound
 
@@ -20,33 +25,38 @@ from app.auth.utils.security import (
     hash_password,
     hash_token,
     create_access_token,
-    create_refresh_token
+    create_refresh_token,
+    obfuscate_email
 )
-from app.entities.users import User
+from app.entities.users import User, UserRole
 from app.entities.auth_tables import RefreshToken
 from app.auth.models import UserCreate, Token, UserLogin
+from app.profiles.service import get_existing_student_profile_by_names, create_student_profile, create_instructor_profile
+from app.profiles.models import StudentProfileCreate, InstructorProfileCreate
 from app.config import settings
 
+def check_user_signup_with_existing_name():
+    pass
 
-def create_user(db: Session, create_user_request: UserCreate) -> User:
+def create_user(db: Session, payload: UserCreate) -> User | JSONResponse:
     """
     Register a new user in the system.
+    If it notices a student trying to signup with the same name as an already existing student account, it flags it.
     """
-    if create_user_request.password != create_user_request.password2:
+    if payload.password != payload.password2:
         logging.warning("password and confirm password do not match.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match."
         )
 
     try:
-        # stating it as User.username instead of just user, ensures that we are only selecting username not the whole row
         result_username = db.execute(
-            select(User.username).where(User.username == create_user_request.username)
+            select(User.username).where(User.username == payload.username)
         )
         existing_username = result_username.scalar_one_or_none()
 
         result_email = db.execute(
-            select(User.email).where(User.email == create_user_request.email)
+            select(User.email).where(User.email == payload.email)
         )
         existing_email = result_email.scalar_one_or_none()
 
@@ -69,25 +79,50 @@ def create_user(db: Session, create_user_request: UserCreate) -> User:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered."
         )
+    if not payload.ignore_name_conflict and payload.role == UserRole.STUDENT:
+        has_name_match = get_existing_student_profile_by_names(
+            db, payload.first_name.strip(), payload.last_name.strip(), payload.middle_name.strip()
+        )
+        if has_name_match:
+            return JSONResponse(content={
+                "title": "result of checking user's name against existing profiles",
+                "message": "A user with this name already exists",
+                "possible action": "retrieve account",
+                "hint": f"{obfuscate_email(has_name_match.user.email)}"
+            }, status_code=status.HTTP_409_CONFLICT)
 
     try:
         new_user = User(
-            username=str(create_user_request.username),
-            email=str(create_user_request.email),
-            hashed_password=hash_password(create_user_request.password),
-            phone=create_user_request.phone,
-            role=create_user_request.role,
+            username=str(payload.username),
+            email=str(payload.email),
+            hashed_password=hash_password(payload.password),
+            phone=payload.phone,
+            role=payload.role,
         )
         db.add(new_user)
+        db.flush()  # ensures that new_user.id exists before profile creation
+
+        if new_user.role == UserRole.STUDENT:
+            student_profile = StudentProfileCreate(first_name=payload.first_name, middle_name=payload.middle_name, last_name=payload.last_name)
+            profile = create_student_profile(db, new_user, student_profile)
+            new_user.student_profile = profile
+        if new_user.role == UserRole.INSTRUCTOR:
+            instructor_profile = InstructorProfileCreate(first_name=payload.first_name, middle_name=payload.middle_name, last_name=payload.last_name)
+            profile = create_instructor_profile(db, new_user, instructor_profile)
+            new_user.instructor_profile = profile
+
         db.commit()
+        db.refresh(new_user)
         return new_user
 
-    except Exception as e:
+    except SQLAlchemyError as e:
         db.rollback()
         logging.error(
-            f"Failed to register user: {create_user_request.email}, Error: {str(e)}"
+            f"Failed to register user: {payload.email}, Error: {str(e)}"
         )
-        raise
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error") from e
+
+
 
 
 def authenticate_user(email_or_username: str, password: str, db: Session) -> User | bool:

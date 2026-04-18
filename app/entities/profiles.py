@@ -4,9 +4,10 @@ that actually map to database tables. It also contains the expertise table that
 contains pool of expertise of the instructors.
 """
 from datetime import datetime, date
+from operator import index
 from uuid import UUID, uuid4
 import enum
-from sqlalchemy import String, Uuid, ForeignKey, DateTime, func, Table, Column, Date, Enum
+from sqlalchemy import String, Uuid, ForeignKey, DateTime, func, Table, Column, Date, Enum, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.core import Base
 from typing import TYPE_CHECKING
@@ -67,8 +68,8 @@ class InstructorProfile(Base):
     last_name: Mapped[str] = mapped_column(String(50), nullable=False)
     bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), unique=True)
-    address:  Mapped[str] = mapped_column(String(60), nullable=True)
-    birth_date: Mapped[date] = mapped_column(Date, nullable=False)
+    address:  Mapped[str | None] = mapped_column(String(60), nullable=True)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[Gender] = mapped_column(
         Enum(Gender, native_enum=True), nullable=False, default=Gender.MALE
     )
@@ -100,11 +101,11 @@ class StudentProfile(Base):
     middle_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     last_name: Mapped[str] = mapped_column(String(50), nullable=False)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), unique=True)
-    birth_date: Mapped[date] = mapped_column(Date, nullable=False)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[Gender] = mapped_column(
         Enum(Gender, native_enum=True), nullable=False, default=Gender.MALE
     )
-    address: Mapped[str] = mapped_column(String(60), nullable=False)
+    address: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -128,3 +129,6 @@ class StudentProfile(Base):
     # course_ratings: Mapped[list["CourseRating"]] = relationship(
     #     "CourseRating", back_populates="student_profile", cascade="all, delete-orphan"
     # )
+    __table_args__ = (
+        Index("ix_user_full_name", "first_name", "last_name", "middle_name"),
+    )

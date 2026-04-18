@@ -11,7 +11,7 @@ from app.auth.dependencies import require_role
 from typing import Annotated
 
 
-def require_teacher(
+def require_instructor(
         user: Annotated[User, Depends(require_role(UserRole.INSTRUCTOR))]
 ) -> User:
     """Dependency that ensures the current user has the TEACHER role."""

@@ -16,10 +16,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     username: str = Field(max_length=30)
+    first_name: str = Field(max_length=30)
+    middle_name: str = Field(max_length=30)
+    last_name: str = Field(max_length=30)
     email: EmailStr = Field(max_length=120)
     phone: str | None = None
     password: str = Field(min_length=8, max_length=15)
     password2: str = Field(min_length=8, max_length=15)
+    ignore_name_conflict: bool = Field(default=False)
 
     @model_validator(mode="after")
     def check_passwords_match(self) -> Self:
